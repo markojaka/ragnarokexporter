@@ -1,0 +1,274 @@
+//=============================================================================================
+// Ragnarok - Maya to UDK Level Exporter
+// Version 1.0.130612
+// Marko Jaksic
+//=============================================================================================
+// [Version 1.0]
+// + Added Tools and Help menu
+// + Ragnarok components can be updated directly from exporter, no need for additional script
+// + You can change your object rotation to XZY directly from exporter
+// + Shortcut for object export is now inside Tools menu
+// + Minor GUI improvments and changes
+// --------------------------------------------------------------------------------------------
+// [Version 0.9]
+// + Script will not crash export process if there is no Raganrok component on the mesh. Instead it will print errors found after export process has completed
+// + Fixed error that emerges when attempting to save to same destination after "Ragnarok Tag not found on object" error upon previous export
+// + Made available object exclusion from export procedure
+// + GUI improvments
+// --------------------------------------------------------------------------------------------
+// [Version 0.8]
+// + Added helper script to upadte objects so that they can be used with newest version. NOTE: This will be inside GUI in final version.
+// + Minor GUI changes
+// --------------------------------------------------------------------------------------------
+// [Version 0.7]
+// + Do your level design in Maya
+// + One click export from Maya, one click import in UDK
+// + None of the basic principles of game design are broken, working fine with mesh instances
+// + Intuitive UI
+// + Easy to use
+//=============================================================================================
+{
+ //GUI
+ if (`window -exists ragnarokWin`) deleteUI -window ragnarokWin;
+ string $ragnarokWin = `window -title "Ragnarok 1.0.130612" -s true -menuBar true -mnb false -mxb false -rtf true ragnarokWin`;
+    menu -label "Tools";
+	menuItem -label "Update Ragnarok Components" -c "UpdateRagnarokComponents";
+	menuItem -label "Update Rotation Order to XZY" -c "UpdateRotationOrder";
+	menuItem -divider true;
+	menuItem -label "Object Export" -c "ExportObject";
+	menu -label "Help" -helpMenu true;
+	menuItem -label "About Ragnarok Exporter" -c "ShowHelpWindow";
+ scrollLayout scrollLayout;
+        columnLayout -adjustableColumn true;
+        frameLayout -label "Attributes" -borderStyle "etchedIn" -bgc 0.85 0.1 0.1;
+                columnLayout;
+                    textFieldGrp -l "Tag" tagFG;
+                    button -label "Add Attribute" -w 500 -c "Add_Attr";                  
+                    button -label "Remove Attribute" -w 500 -c "Remove_Attr";  
+        frameLayout -label "Export settings" -borderStyle "etchedIn" -bgc 0.1 0.2 0.8;
+                columnLayout; 
+                    textFieldGrp -l "Export Dir" -cw 2 350 -text "C:\\UDK\\UDK-2012-02\\UDKGame\\Content\\TestGame\\levels\\ragnarokdump.t3d" exportdir_textFieldGrp;                                                
+                    textFieldGrp -l "UDK Map Name" -cw 3 350 -text "MyMap" udkMap_textFieldGrp;
+					textFieldGrp -l "UDK Package Name" -cw 3 350 -text "TestGamePackage" udkPackage_textFieldGrp;                              					
+                    floatFieldGrp -l "Unit multiplier" -v1 100 unitM;
+                    button -label "Export level" -w 500 -c "ExportToFile";  
+                    setParent ..;
+                    separator -style "in";
+  
+  window -e -wh 525 275 $ragnarokWin;
+ showWindow $ragnarokWin;
+
+
+ 
+
+proc ShowHelpWindow()
+{
+    if (`window -exists helpWin`) deleteUI -window helpWin;
+    string $helpWin = `window -title "Ragnarok Help"-mnb false -mxb false -rtf true -sizeable true helpWin`;
+    columnLayout -adjustableColumn true;
+    textFieldGrp -l "Author" -cw 1 100 -cw 2 250 -ed false -text "Marko Jaksic";
+    textFieldGrp -l "Version" -cw 1 100 -cw 2 250 -ed false -text "1.0.130612";
+    textFieldGrp -l "Contact" -cw 1 100 -cw 2 250 -ed false -text "markjaksic@gmail.com";
+    setParent ..;
+    showWindow $helpWin;
+    window -e -wh 375 75 $helpWin;
+}
+
+proc UpdateRagnarokComponents()
+{
+    string $sel[] = `ls -sl`;
+    
+    for($item in $sel) 
+    {
+        if (`attributeExists "RagnarokTag" $item` == true)
+        {
+            if (`attributeExists "ExcludeFromExport" $item` == false)
+            {
+                addAttr -ln ExcludeFromExport -nn "Exclude from export" -attributeType bool $item;
+            }
+        }
+    }
+    
+    print "\nUpdate successful!";
+}
+
+proc UpdateRotationOrder()
+{
+    string $sel[] = `ls -sl`;
+
+    for($item in $sel) 
+    {
+        if (`attributeExists "RagnarokTag" $item` == true)
+        {
+            xform -p true -roo xzy;
+        }
+    }
+
+    print "\nRotation order to XZY successful!";
+}
+
+proc ExportObject()
+{           
+    ExportSelection;
+}
+
+proc Add_Attr()
+{
+      string $sel[] = `ls -sl`;
+      if (size($sel) >= 1)
+      {
+          for($item in $sel) 
+          {
+              if (`attributeExists "RagnarokTag" $item`)
+              {
+                  string $msg = "Attribute already exists on this object: " + $item + ". Delete it first.\n";
+                  warning $msg;
+              } 
+              else 
+              {
+                  addAttr -ln RagnarokTag -nn "Ragnarok Tag" -dt "string" $item;
+                  string $tag = `textFieldGrp -q -text tagFG`;
+                  setAttr ($item+".RagnarokTag") -type "string" $tag;
+                  
+                  addAttr -ln ExcludeFromExport -nn "Exclude from export" -attributeType bool $item;
+                  
+                  string $msg ="Ragnarok tag ["+$tag+"] added on object ["+$item+"]\n";
+                  print $msg;
+              }
+          } 
+      }
+      else
+      {warning "Select at least one polygon object!";}
+      
+      
+}
+
+proc Remove_Attr()
+{
+      string $sel[] = `ls -sl`;
+      if (size($sel) >= 1)
+      {
+          for($item in $sel) 
+          {
+              if (`attributeExists "RagnarokTag" $item`)
+              {
+                  deleteAttr -at RagnarokTag $item;
+                  deleteAttr -at ExcludeFromExport $item;
+                  string $msg ="Ragnarok tag removed on object ["+$item+"]\n";
+                  print $msg;
+              } 
+              else 
+              {   
+              string $msg = "There is no attribute to be removed on this object: "+$item+"\n";
+               warning $msg;
+               }
+          } 
+      }
+      else
+      {warning "Select at least one polygon object!";}
+}
+
+proc ExportToFile()
+{
+        string $sel[] = `ls -sl`;
+      string $errorLog = "";
+     if(size($sel) > 0)
+     {                  
+            // Define Your File Path  
+            string $filePath = `textFieldGrp -q -text exportdir_textFieldGrp`;  
+			string $udkMap = `textFieldGrp -q -text udkMap_textFieldGrp`;
+            string $udkPackage = `textFieldGrp -q -text udkPackage_textFieldGrp`;
+                  
+            // Open Your File  
+            $fileId = `fopen $filePath "w"` ;  
+                
+            //Write header
+            fprint $fileId ("Begin Map Name=" + $udkMap + "\n");
+            fprint $fileId "  Begin Level NAME=PersistentLevel\n";
+                
+         for($c = 0; $c < size($sel); $c++ ) 
+            { 
+                if(attributeExists("RagnarokTag",$sel[$c]))
+                 { 
+                    if(getAttr ($sel[$c]+".ExcludeFromExport") == false )
+                     { 
+                    // Print Array To File  
+                     string $tmp = $sel[$c];
+                     string $rt = `getAttr ($tmp+".RagnarokTag")`;
+                     float $dataT[] =`xform -q -t $sel[$c]`;
+                     float $dataR[] =`xform -q -ro $sel[$c]`;
+                     float $dataS[] =`xform -q -s $sel[$c]`;
+                     float $multiplier = `floatFieldGrp -q -v1 unitM`;
+                     
+                     $dataT[0] *= $multiplier;
+                     $dataT[1] *= $multiplier;
+                     $dataT[2] *= $multiplier;
+                               
+                     $dataR[0] /= 0.0054932;
+                     $dataR[1] /= 0.0054932;
+                     $dataR[2] /= 0.0054932;
+                                      
+                     int $dataR_fixed[];
+                     $dataR_fixed[0] = $dataR[0];
+                     $dataR_fixed[1] = $dataR[1];
+                     $dataR_fixed[2] = $dataR[2];
+                     //string $forprint = "Begin Actor Class=StaticMeshActor Name="+$rt+"_"+$c+" Archetype=StaticMeshActor'Engine.Default__StaticMeshActor'\n";
+                     fprint $fileId "    Begin Actor Class=StaticMeshActor Name=";
+                     fprint $fileId $rt;
+                     fprint $fileId "_";
+                     fprint $fileId $c;
+                     fprint $fileId " Archetype=StaticMeshActor'Engine.Default__StaticMeshActor'";
+                     //fprint $fileId " Archetype=StaticMeshActor'Engine.Default__StaticMeshActor'\n";
+                     fprint $fileId "\n      Begin Object Class=StaticMeshComponent Name=StaticMeshComponent0 Archetype=StaticMeshComponent'Engine.Default__StaticMeshActor:StaticMeshComponent0'\n";
+                     fprint $fileId ("      StaticMesh=StaticMesh'" + $udkPackage + "." + $rt + "'\n"); //" + $rt + "
+                     fprint $fileId "      End Object\n";
+                     //write translation
+                     fprint $fileId "      Location=(X=";
+                     fprint $fileId $dataT[0];
+                     fprint $fileId ",Y=";
+                     fprint $fileId $dataT[2];
+                     fprint $fileId ",Z=";
+                     fprint $fileId $dataT[1];
+                     fprint $fileId ")\n";
+                     //write rotation
+                     fprint $fileId "      Rotation=(Roll=";
+                     fprint $fileId $dataR_fixed[0];
+                     fprint $fileId ",Pitch=";
+                     fprint $fileId $dataR_fixed[2];
+                     fprint $fileId ",Yaw=";
+                     fprint $fileId ($dataR_fixed[1] *= -1);
+                     fprint $fileId ")\n";
+                     //write scale
+                     fprint $fileId "      DrawScale3D=(X=";
+                     fprint $fileId $dataS[0];
+                     fprint $fileId ",Y=";
+                     fprint $fileId $dataS[2];
+                     fprint $fileId ",Z=";
+                     fprint $fileId $dataS[1];
+                     fprint $fileId ")\n";
+                     fprint $fileId "Tag=\"RagnarokComponent\"\n";
+                     
+                     fprint $fileId "    End Actor\n";  
+                    }
+                }
+                 else
+                 {$errorLog += "\nFailed to export " + $sel[$c]  + "! No Ragnarok components found.";}
+            
+         }
+         
+            fprint $fileId "  End Level\n";
+            fprint $fileId "End Map\n" ;
+             if($errorLog == "")
+            {print "\nExport successful!";}
+            else
+            {
+                print ("\nRAGNAROK WARNING: " + $errorLog + "\n");         
+                print "\nExport completed with errors! Check log!";   
+            }
+            fclose $fileId;             
+     }
+     else
+     {
+         error "No object selected!";}
+     }     
+};
