@@ -1,6 +1,7 @@
 Ragnarok - Maya to UDK Level Exporter
 Version 1.0.130612
  
+ HOW TO USE => http://bit.ly/175PeLO
 ===========================================================================================
 [Version 1.0]
 + Added Tools and Help menu
