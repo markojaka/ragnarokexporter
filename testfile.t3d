@@ -1,0 +1,31 @@
+Begin Map Name=MyMapName
+  Begin Level NAME=PersistentLevel
+    Begin Actor Class=StaticMeshActor Name=EnvRock_F_0 Archetype=StaticMeshActor'Engine.Default__StaticMeshActor'
+      Begin Object Class=StaticMeshComponent Name=StaticMeshComponent0 Archetype=StaticMeshComponent'Engine.Default__StaticMeshActor:StaticMeshComponent0'
+      StaticMesh=StaticMesh'MyGamePackage.EnvRock_F'
+      End Object
+      Location=(X=-1316.152687,Y=172.054858,Z=522.54151)
+      Rotation=(Roll=0,Pitch=0,Yaw=-2248)
+      DrawScale3D=(X=1,Y=1,Z=1)
+Tag="RagnarokComponent"
+    End Actor
+    Begin Actor Class=StaticMeshActor Name=EnvRock_F_1 Archetype=StaticMeshActor'Engine.Default__StaticMeshActor'
+      Begin Object Class=StaticMeshComponent Name=StaticMeshComponent0 Archetype=StaticMeshComponent'Engine.Default__StaticMeshActor:StaticMeshComponent0'
+      StaticMesh=StaticMesh'MyGamePackage.EnvRock_F'
+      End Object
+      Location=(X=-1230.421129,Y=322.518973,Z=413.075104)
+      Rotation=(Roll=-2208,Pitch=-5480,Yaw=8816)
+      DrawScale3D=(X=1,Y=1,Z=1)
+Tag="RagnarokComponent"
+    End Actor
+    Begin Actor Class=StaticMeshActor Name=EnvRock_C_2 Archetype=StaticMeshActor'Engine.Default__StaticMeshActor'
+      Begin Object Class=StaticMeshComponent Name=StaticMeshComponent0 Archetype=StaticMeshComponent'Engine.Default__StaticMeshActor:StaticMeshComponent0'
+      StaticMesh=StaticMesh'MyGamePackage.EnvRock_C'
+      End Object
+      Location=(X=-1367.207295,Y=337.539665,Z=430.638837)
+      Rotation=(Roll=-5635,Pitch=-2162,Yaw=5703)
+      DrawScale3D=(X=1,Y=1,Z=1)
+Tag="RagnarokComponent"
+    End Actor
+  End Level
+End Map
