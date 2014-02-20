@@ -10,6 +10,7 @@
 // + Introduced 'Asset validation test' - tool to make sure objects are optimal for export to UDK
 // + 'Prepare for export' command will auto combine meshes if there's more than one, set pivot to world origin, freeze transofrms and delete history.
 // + Package Name is default name that will be applied upon creation of Ragnarok tag. Package names are now bound on object level, ie. every object can have its own Package Name
+// --------------------------------------------------------------------------------------------
 // [Version 1.0]
 // + Added Tools and Help menu
 // + Ragnarok components can be updated directly from exporter, no need for additional script
