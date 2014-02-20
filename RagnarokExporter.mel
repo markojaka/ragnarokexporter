@@ -1,8 +1,15 @@
 //=============================================================================================
 // Ragnarok - Maya to UDK Level Exporter
-// Version 1.0.130612
+// Version 1.1.200214
 // Marko Jaksic
 //=============================================================================================
+// [Version 1.1]
+// + Redesigned GUI, introduced tabs
+// + Tag text box will be auto set based on selection. If more objects are selected, the last will be used.
+// + Added support for removal of prefixes and suffixes in tag name upon selection
+// + Introduced 'Asset validation test' - tool to make sure objects are optimal for export to UDK
+// + 'Prepare for export' command will auto combine meshes if there's more than one, set pivot to world origin, freeze transofrms and delete history.
+// + Package Name is default name that will be applied upon creation of Ragnarok tag. Package names are now bound on object level, ie. every object can have its own Package Name
 // [Version 1.0]
 // + Added Tools and Help menu
 // + Ragnarok components can be updated directly from exporter, no need for additional script
@@ -28,133 +35,212 @@
 // + Easy to use
 //=============================================================================================
 {
- //GUI
- if (`window -exists ragnarokWin`) deleteUI -window ragnarokWin;
- string $ragnarokWin = `window -title "Ragnarok 1.0.130612" -s true -menuBar true -mnb false -mxb false -rtf true ragnarokWin`;
-    menu -label "Tools";
-	menuItem -label "Update Ragnarok Components" -c "UpdateRagnarokComponents";
-	menuItem -label "Update Rotation Order to XZY" -c "UpdateRotationOrder";
-	menuItem -divider true;
-	menuItem -label "Object Export" -c "ExportObject";
-	menu -label "Help" -helpMenu true;
-	menuItem -label "About Ragnarok Exporter" -c "ShowHelpWindow";
- scrollLayout scrollLayout;
-        columnLayout -adjustableColumn true;
-        frameLayout -label "Attributes" -borderStyle "etchedIn" -bgc 0.85 0.1 0.1;
-                columnLayout;
-                    textFieldGrp -l "Tag" tagFG;
-                    button -label "Add Attribute" -w 500 -c "Add_Attr";                  
-                    button -label "Remove Attribute" -w 500 -c "Remove_Attr";  
-        frameLayout -label "Export settings" -borderStyle "etchedIn" -bgc 0.1 0.2 0.8;
-                columnLayout; 
-                    textFieldGrp -l "Export Dir" -cw 2 350 -text "C:\\UDK\\UDK-2012-02\\UDKGame\\Content\\TestGame\\levels\\ragnarokdump.t3d" exportdir_textFieldGrp;                                                
-                    textFieldGrp -l "UDK Map Name" -cw 3 350 -text "MyMap" udkMap_textFieldGrp;
-					textFieldGrp -l "UDK Package Name" -cw 3 350 -text "TestGamePackage" udkPackage_textFieldGrp;                              					
-                    floatFieldGrp -l "Unit multiplier" -v1 100 unitM;
-                    button -label "Export level" -w 500 -c "ExportToFile";  
-                    setParent ..;
-                    separator -style "in";
-  
-  window -e -wh 525 275 $ragnarokWin;
- showWindow $ragnarokWin;
+if (`window -exists ragnarokWin`) deleteUI -window ragnarokWin;
+string $ragnarokWin = `window -title "Ragnarok 1.1.200214" -s false -menuBar true -mnb false -mxb false -rtf true ragnarokWin`;
+string $mainForm = `formLayout -w 610`;
+string $tabs = `tabLayout -innerMarginWidth 5 -innerMarginHeight 5 -cc "OnTabChange" ragnarokTabs`;
+formLayout -edit -attachForm $tabs "top" 0 -attachForm $tabs "left" 0 -attachForm $tabs "bottom" 0 -attachForm $tabs "right" 0 $mainForm;
 
-
- 
-
-proc ShowHelpWindow()
-{
-    if (`window -exists helpWin`) deleteUI -window helpWin;
-    string $helpWin = `window -title "Ragnarok Help"-mnb false -mxb false -rtf true -sizeable true helpWin`;
-    columnLayout -adjustableColumn true;
-    textFieldGrp -l "Author" -cw 1 100 -cw 2 250 -ed false -text "Marko Jaksic";
-    textFieldGrp -l "Version" -cw 1 100 -cw 2 250 -ed false -text "1.0.130612";
-    textFieldGrp -l "Contact" -cw 1 100 -cw 2 250 -ed false -text "markjaksic@gmail.com";
+string $assetPanel = `columnLayout`;
+frameLayout -label "Attributes" -borderStyle "etchedIn" -bgc 0.85 0.1 0.1 -w 610 attributesFrameLayout;
+    rowColumnLayout -nc 3 -cw 1 200 -cw 2 200 -cw 3 200 firstRCLayout;
+        textFieldGrp -label "Tag" -w 200 -cw2 100 95 tagFG;
+        textFieldGrp -label "Remove prefix" -w 200 -cw2 100 95 prefixFG;
+        textFieldGrp -label "Remove suffix" -w 200 -cw2 100 95 suffixFG;
     setParent ..;
-    showWindow $helpWin;
-    window -e -wh 375 75 $helpWin;
-}
 
-proc UpdateRagnarokComponents()
-{
-    string $sel[] = `ls -sl`;
+    columnLayout;
+        button -label "Add Attribute" -w 605 -c "Add_Attr";                  
+        button -label "Remove Attribute" -w 605 -c "Remove_Attr";  
+        setParent ..;
+    setParent ..;
     
-    for($item in $sel) 
-    {
-        if (`attributeExists "RagnarokTag" $item` == true)
-        {
-            if (`attributeExists "ExcludeFromExport" $item` == false)
-            {
-                addAttr -ln ExcludeFromExport -nn "Exclude from export" -attributeType bool $item;
+frameLayout -label "Tools" -borderStyle "etchedIn" -bgc 0.25 0.8 0.1 -w 610 toolsFrameLayout;
+    columnLayout;
+        button -label "Update Ragnarok components" -w 605 -c "UpdateRagnarokComponents";                  
+        button -label "Update rotation order to XZY" -w 605 -c "UpdateRotationOrder";
+        button -label "Asset validation test" -w 605 -c "AssetValidationTest"; 
+        button -label "Prepare for export" -w 605 -c "PrepareForExport";                  
+        button -label "Export as FBX" -w 605 -c "ExportObject";  
+        setParent ..;
+    setParent ..;
+    
+setParent ..;
+
+
+string $worldPanel = `columnLayout`;
+frameLayout -label "Export settings" -borderStyle "etchedIn" -bgc 0.1 0.2 0.8 -w 610;
+columnLayout; 
+textFieldGrp -l "Export Dir" -cw 2 350 -text "C:\\UDK\\UDK-2012-02\\UDKGame\\Content\\TestGame\\levels\\ragnarokdump.t3d" exportdir_textFieldGrp;                                                
+textFieldGrp -l "UDK Map Name" -cw 3 350 -text "MyMap" udkMap_textFieldGrp;
+textFieldGrp -l "Default UDK Package Name" -cw 3 350 -text "TestGamePackage" udkPackage_textFieldGrp;                              					
+floatFieldGrp -l "Unit multiplier" -v1 100 unitM;
+button -label "Export level" -w 600 -c "ExportToFile";  
+setParent ..;
+setParent ..;
+setParent ..;
+
+string $helpPanel = `columnLayout`;
+columnLayout; 
+textFieldGrp -l "Author" -cw 1 100 -cw 2 500 -ed false -text "Marko Jaksic";
+textFieldGrp -l "Version" -cw 1 100 -cw 2 500 -ed false -text "1.0.200214";
+textFieldGrp -l "Email" -cw 1 100 -cw 2 500 -ed false -text "mjaksic7@gmail.com";
+textFieldGrp -l "Twitter" -cw 1 100 -cw 2 500 -ed false -text "www.twitter.com/MarkoJaka";
+textFieldGrp -l "How to use" -cw 1 100 -cw 2 500 -ed false -text "www.markojaksic.com/articles/ragnarokexporter.html";
+setParent ..;
+setParent ..;
+
+tabLayout -edit -tabLabel $assetPanel "Asset" -tabLabel $worldPanel "World" -tabLabel $helpPanel "Help" $tabs;
+window -e -wh 620 280 $ragnarokWin;
+showWindow $ragnarokWin;
+scriptJob -event "SelectionChanged" OnChange;
+
+    proc OnChange(){
+        print("looool");
+        string $curr_sel[] = `ls -sl`;
+ 
+        if(size($curr_sel) >= 1){
+            if (`window -exists ragnarokWin`){
+                textFieldGrp -e -tx $curr_sel[0] tagFG;
+                string $tagname;
+                int $tagnameSize;
+                $tagname = `textFieldGrp -q -tx tagFG`;
+                $tagnameSize = size($tagname);
+                string $preToLookup = `textFieldGrp -q -tx prefixFG`;
+                int $preToLookupSize = size($preToLookup);
+                string $sufToLookup = `textFieldGrp -q -tx suffixFG`;
+                int $sufToLookupSize = size($sufToLookup);
+                
+                if($preToLookupSize < $tagnameSize && $preToLookupSize > 0){
+                    string $pattern = `substring $tagname 1 $preToLookupSize`;
+                    if($pattern == $preToLookup){
+                        string $result = `substring $tagname ($preToLookupSize+1) $tagnameSize`;
+                        textFieldGrp -e -tx $result tagFG;
+                    }
+                }
+                
+                $tagname = `textFieldGrp -q -tx tagFG`;
+                $tagnameSize = size($tagname);
+                
+                if($sufToLookupSize < $tagnameSize && $sufToLookupSize > 0){
+                    string $pattern = `substring $tagname ($tagnameSize-$sufToLookupSize+1) ($tagnameSize)`;
+                    if($pattern == $sufToLookup){
+                        string $result = `substring $tagname 1 ($tagnameSize-$sufToLookupSize)`;
+                        textFieldGrp -e -tx $result tagFG;
+                    }
+                }
             }
         }
     }
     
-    print "\nUpdate successful!";
-}
-
-proc UpdateRotationOrder()
-{
-    string $sel[] = `ls -sl`;
-
-    for($item in $sel) 
+    proc OnTabChange()
     {
-        if (`attributeExists "RagnarokTag" $item` == true)
+        int $n = 0;
+        $n = `tabLayout -q -sti ragnarokTabs`;
+        switch ($n) {
+            case 1:
+            window -e -wh 620 280 ragnarokWin;
+            break;
+            case 2:
+            window -e -wh 620 165 ragnarokWin;
+            break;
+            case 3:
+            window -e -wh 620 150 ragnarokWin;
+            break;
+            default:
+            window -e -wh 620 280 ragnarokWin;
+            break;
+        }
+    }
+    
+    proc UpdateRagnarokComponents()
+    {
+        string $sel[] = `ls -sl`;
+        
+        for($item in $sel) 
         {
-            xform -p true -roo xzy;
+            if (`attributeExists "RagnarokTag" $item` == true)
+            {
+                if (`attributeExists "UDKPackageName" $item` == false)
+                {
+                    addAttr -ln UDKPackageName -nn "UDK Package Name" -dt "string" $item;
+                    string $package = `textFieldGrp -q -text udkPackage_textFieldGrp`;
+                  setAttr ($item+".UDKPackageName") -type "string" $package;
+                }
+                if (`attributeExists "ExcludeFromExport" $item` == false)
+                {
+                     addAttr -ln ExcludeFromExport -nn "Exclude from export" -attributeType bool $item;
+                }
+                print ("\nUpdate successful on object:"+$item+"!");
+            }
         }
     }
 
-    print "\nRotation order to XZY successful!";
-}
+    proc UpdateRotationOrder()
+    {
+        string $sel[] = `ls -sl`;
+    
+        for($item in $sel) 
+        {
+            if (`attributeExists "RagnarokTag" $item` == true){
+                xform -p true -roo xzy;
+                print "\nRotation order to XZY successful!";
+            }else{
+                print ("No Ragnarok tag found on this object: " + $item + ". Skipping rotation order change...\n");
+            }
+        }
+    }
+    
+    proc ExportObject()
+    {           
+        ExportSelection;
+    }
 
-proc ExportObject()
-{           
-    ExportSelection;
-}
+    proc Add_Attr()
+    {
+        string $sel[] = `ls -sl`;
+        if (size($sel) >= 1)
+        {
+            for($item in $sel) 
+            {
+                if (`attributeExists "RagnarokTag" $item`)
+                {
+                    string $msg = "Attribute already exists on this object: " + $item + ". Delete it first.\n";
+                    warning $msg;
+                } 
+                else 
+                {
+                    addAttr -ln RagnarokTag -nn "Ragnarok Tag" -dt "string" $item;
+                    string $tag = `textFieldGrp -q -text tagFG`;
+                    setAttr ($item+".RagnarokTag") -type "string" $tag;
+                    
+                    addAttr -ln UDKPackageName -nn "UDK Package Name" -dt "string" $item;
+                    string $package = `textFieldGrp -q -text udkPackage_textFieldGrp`;
+                    setAttr ($item+".UDKPackageName") -type "string" $package;
+                    
+                    addAttr -ln ExcludeFromExport -nn "Exclude from export" -attributeType bool $item;
+                    
+                    string $msg ="Ragnarok tag ["+$tag+"] added on object ["+$item+"]\n";
+                    print $msg;
+                }
+            } 
+        }
+        else{
+            warning "Select at least one polygon object!";
+        }
+    }
 
-proc Add_Attr()
-{
-      string $sel[] = `ls -sl`;
-      if (size($sel) >= 1)
-      {
-          for($item in $sel) 
-          {
-              if (`attributeExists "RagnarokTag" $item`)
-              {
-                  string $msg = "Attribute already exists on this object: " + $item + ". Delete it first.\n";
-                  warning $msg;
-              } 
-              else 
-              {
-                  addAttr -ln RagnarokTag -nn "Ragnarok Tag" -dt "string" $item;
-                  string $tag = `textFieldGrp -q -text tagFG`;
-                  setAttr ($item+".RagnarokTag") -type "string" $tag;
-                  
-                  addAttr -ln ExcludeFromExport -nn "Exclude from export" -attributeType bool $item;
-                  
-                  string $msg ="Ragnarok tag ["+$tag+"] added on object ["+$item+"]\n";
-                  print $msg;
-              }
-          } 
-      }
-      else
-      {warning "Select at least one polygon object!";}
-      
-      
-}
-
-proc Remove_Attr()
-{
-      string $sel[] = `ls -sl`;
-      if (size($sel) >= 1)
-      {
+    proc Remove_Attr()
+    {
+        string $sel[] = `ls -sl`;
+        if (size($sel) >= 1)
+        {
           for($item in $sel) 
           {
               if (`attributeExists "RagnarokTag" $item`)
               {
                   deleteAttr -at RagnarokTag $item;
-                  deleteAttr -at ExcludeFromExport $item;
-                  string $msg ="Ragnarok tag removed on object ["+$item+"]\n";
+                  string $msg ="Ragnarok properties removed on object ["+$item+"]\n";
                   print $msg;
               } 
               else 
@@ -162,22 +248,26 @@ proc Remove_Attr()
               string $msg = "There is no attribute to be removed on this object: "+$item+"\n";
                warning $msg;
                }
+               if (`attributeExists "UDKPackageName" $item`)
+                  { deleteAttr -at UDKPackageName $item; }
+               if (`attributeExists "ExcludeFromExport" $item`)
+                  { deleteAttr -at ExcludeFromExport $item; }
           } 
-      }
-      else
-      {warning "Select at least one polygon object!";}
-}
+        }else{
+        warning "Select at least one polygon object!";
+        }
+    }
 
-proc ExportToFile()
-{
+    proc ExportToFile()
+    {
         string $sel[] = `ls -sl`;
-      string $errorLog = "";
-     if(size($sel) > 0)
-     {                  
+        string $errorLog = "";
+        if(size($sel) > 0)
+        {                  
             // Define Your File Path  
             string $filePath = `textFieldGrp -q -text exportdir_textFieldGrp`;  
-			string $udkMap = `textFieldGrp -q -text udkMap_textFieldGrp`;
-            string $udkPackage = `textFieldGrp -q -text udkPackage_textFieldGrp`;
+            string $udkMap = `textFieldGrp -q -text udkMap_textFieldGrp`;
+            //string $udkPackage = `textFieldGrp -q -text udkPackage_textFieldGrp`;
                   
             // Open Your File  
             $fileId = `fopen $filePath "w"` ;  
@@ -186,7 +276,7 @@ proc ExportToFile()
             fprint $fileId ("Begin Map Name=" + $udkMap + "\n");
             fprint $fileId "  Begin Level NAME=PersistentLevel\n";
                 
-         for($c = 0; $c < size($sel); $c++ ) 
+            for($c = 0; $c < size($sel); $c++ ) 
             { 
                 if(attributeExists("RagnarokTag",$sel[$c]))
                  { 
@@ -195,6 +285,7 @@ proc ExportToFile()
                     // Print Array To File  
                      string $tmp = $sel[$c];
                      string $rt = `getAttr ($tmp+".RagnarokTag")`;
+                     string $udkPackage = `getAttr ($tmp+".UDKPackageName")`;
                      float $dataT[] =`xform -q -t $sel[$c]`;
                      float $dataR[] =`xform -q -ro $sel[$c]`;
                      float $dataS[] =`xform -q -s $sel[$c]`;
@@ -254,21 +345,98 @@ proc ExportToFile()
                  else
                  {$errorLog += "\nFailed to export " + $sel[$c]  + "! No Ragnarok components found.";}
             
-         }
-         
+            }
+            
             fprint $fileId "  End Level\n";
             fprint $fileId "End Map\n" ;
-             if($errorLog == "")
-            {print "\nExport successful!";}
-            else
-            {
+            if($errorLog == ""){
+                print "\nExport successful!";
+            }
+            else{
                 print ("\nRAGNAROK WARNING: " + $errorLog + "\n");         
                 print "\nExport completed with errors! Check log!";   
             }
-            fclose $fileId;             
-     }
-     else
-     {
-         error "No object selected!";}
-     }     
-};
+        fclose $fileId;             
+        }else{
+        error "No object selected!";
+        }
+    } 
+        
+    proc AssetValidationTest(){
+        string $errorLog = "";
+        int $errorCount = 0;
+        string $objects[] = `ls -sl`;
+        if(size($objects) > 0)
+        {
+            for($i = 0; $i < size($objects); $i++ ){
+                // Check missing ragnarok tags
+                if(`attributeExists "RagnarokTag" $objects[$i]` == false){
+                  $errorLog += "\nRagnarok Tag missing on object: "+$objects[$i];    
+                  $errorCount++;     
+                }
+                // Check transform reset
+                float $dataT[] =`xform -q -t $objects[$i]`;
+                float $dataR[] =`xform -q -ro $objects[$i]`;
+                float $dataS[] =`xform -q -r -s $objects[$i]`;
+                if(($dataT[0] != 0) || ($dataT[1] != 0) || ($dataT[2] != 0)){
+                    $errorLog += "\nOne or more TRANSLATE values are NOT SET to 0 on object: "+$objects[$i];
+                    $errorCount++;     
+                }
+                if(($dataR[0] != 0) || ($dataR[1] != 0) || ($dataR[2] != 0)){
+                    $errorLog += "\nOne or more ROTATE values are NOT SET to 0 on object:"+$objects[$i];
+                    $errorCount++;     
+                }
+                if(($dataS[0] != 1) || ($dataS[1] != 1) || ($dataS[2] != 1)){
+                    $errorLog += "\nOne or more SCALE values are NOT SET to 0 on object:"+$objects[$i];
+                    $errorCount++;     
+                }
+                // Check pivot at origin
+                float $pivotOrigin[] =`xform -q -ws -scalePivot $objects[$i]`;
+                if($pivotOrigin[0] != 0 || $pivotOrigin[1] != 0 || $pivotOrigin[2] != 0){
+                    $errorLog += "\nOne or more PIVOT values are NOT SET to 0 on object: "+$objects[$i];
+                    $errorCount++;     
+                }       
+                // Check rotation order
+                if(`xform -q -roo $objects[$i]` != "xzy"){
+                    $errorLog += "\nROTATION ORDER is not set to XZY on object: "+$objects[$i];        
+                    $errorCount++;      
+                }    
+            }
+        }else{
+            $errorLog += "\nNothing selected";
+            $errorCount++;     
+        }
+        // Check scene units if other than meters
+        if(`currentUnit -q -l` != "m"){
+             $errorLog += "\nSCENE UNIT is NOT set in METERS!";
+             $errorCount++;     
+        }
+        print "\n================ RAGNAROK ASSET TEST [START] ================";
+        if($errorLog == ""){
+            print "\n RAGNAROK ASSET TEST COMPLETED SUCCESSFULLY!";
+        }
+        else{
+            print ("\nRAGNAROK ASSET TEST WARNINGS("+$errorCount+"): " + $errorLog); 
+            print "\n-------------------------------------------------------------";        
+            print "\nTEST completed with errors! Check log!";   
+        }   
+        print "\n================= RAGNAROK ASSET TEST [END] =================";
+    }
+         
+    proc PrepareForExport(){
+        duplicate -rr;
+        string $objects[] = `ls -sl`;
+        if(size($objects) > 1){
+            polyUnite $objects;
+        }
+        xform -cp;
+        move -rpr 0 0 0;
+        float $height_temp[];
+        $height_temp=`xform -q -boundingBox`;
+        float $height = abs(($height_temp[1]-$height_temp[4]));
+        move -rpr 0 ($height/2) 0;
+        makeIdentity -apply true -t 1 -r 1 -s 1 -n 0 -pn 1;
+        xform -pivots 0 0 0; 
+        delete -ch;
+    }
+}
